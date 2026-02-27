@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 np.random.seed(3)
 
-# Methods ---
+# Plots ---
 def show_mask(mask, ax, random_color=False, borders = True):
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -46,3 +46,7 @@ def show_masks(image, masks, scores, point_coords=None, box_coords=None, input_l
             plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
         plt.axis('off')
         plt.show()
+
+# Math ---
+def distance(point_1: np.ndarray, point_2: np.ndarray):
+    return np.linalg.norm(point_1 - point_2)
