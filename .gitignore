@@ -1,0 +1,37 @@
+# Folders
+.venv/
+__pycache__/
+.DS_Store
+
+# Python
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# PyTorch / ML artifacts
+*.pt
+*.pth
+*.ckpt
+*.onnx
+runs/
+wandb/
+mlruns/
+logs/
+
+# Content
+images/*
+checkpoints/sam*
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+*.env.*
