@@ -25,7 +25,7 @@ else:
     device = "cpu"
 
 # Image
-image = Image.open("./images/tree_03.jpg")
+image = Image.open("./images/tree_01.jpg")
 image = np.array(image.convert("RGB"))
 
 # Compute image center
@@ -35,7 +35,7 @@ print(f"Image Size (px): {image_length}x{image_width}")
 image_center = np.array([round(image_length/2), round(image_width/2)])
 print(f"Image Center (px): ({image_center[0]}, {image_center[1]})")
 
-input_point = np.array([[800, 500]])
+input_point = np.array([[500, 500]])
 input_label = np.array([1])
 plt.figure(figsize=(10, 10))
 plt.imshow(image)
@@ -86,4 +86,4 @@ plt.imshow(image)
 plt.scatter(image_center[0], image_center[1])
 plt.scatter(cX, cY)
 plt.axis('on')
-plt.show()  
+plt.show()
