@@ -37,6 +37,8 @@ print(f"Image Center (px): ({image_center[0]}, {image_center[1]})")
 
 input_point = np.array([[500, 500]])
 input_label = np.array([1])
+
+# DEBUG
 plt.figure(figsize=(10, 10))
 plt.imshow(image)
 show_points(input_point, input_label, plt.gca())
