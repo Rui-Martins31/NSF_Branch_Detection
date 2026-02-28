@@ -1,15 +1,11 @@
-## Installation
+## Table of Contents
 
-Run this command in the terminal.
-```
-cd checkpoints && \
-./download_ckpts.sh && \
-cd ..
-```
+1. [Setup](./doc/setup.md)
+2. [Architecture](./doc/architecture.md)
 
 ## Run 
 
-To run the script:
+If everything is already set up you can simply run the command:
 ```
 python3 main.py
 ```
