@@ -47,8 +47,10 @@ plt.axis('on')
 plt.show()  
 
 # Predict mask
-checkpoint = "./checkpoints/sam2.1_hiera_large.pt"
-model_cfg  = "configs/sam2.1/sam2.1_hiera_l.yaml"
+# checkpoint = "./checkpoints/sam2.1_hiera_large.pt"
+# model_cfg  = "configs/sam2.1/sam2.1_hiera_l.yaml"
+checkpoint = "./checkpoints/sam2.1_hiera_small.pt"
+model_cfg  = "configs/sam2.1/sam2.1_hiera_s.yaml"
 predictor  = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint, device=device))
 
 autocast_dtype = torch.bfloat16 if device == "cuda" else torch.float16
