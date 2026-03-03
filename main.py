@@ -1,93 +1,105 @@
-# More Information:
-# https://github.com/facebookresearch/sam2?tab=readme-ov-file
-
-# Imports
 import torch
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
 import cv2
+from PIL import Image
+from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
+from accelerate import Accelerator
 
-#
-from utils import show_points, show_masks, distance
+from utils import show_points, show_masks, show_box, distance
+from sam import predict_mask
 
 np.random.seed(3)
 
 # Device
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-else:
-    device = "cpu"
+device = Accelerator().device
 
 # Image
-image = Image.open("./images/tree_01.jpg")
-image = np.array(image.convert("RGB"))
+image_path = "./images/tree_03"
+image_pil  = Image.open(f"{image_path}.jpg")
+image      = np.array(image_pil.convert("RGB"))
 
-# Compute image center
+# Image center
 image_width  = len(image)
 image_length = len(image[0])
 print(f"Image Size (px): {image_length}x{image_width}")
-image_center = np.array([round(image_length/2), round(image_width/2)])
+image_center = np.array([round(image_length / 2), round(image_width / 2)])
 print(f"Image Center (px): ({image_center[0]}, {image_center[1]})")
 
-input_point = np.array([[500, 500]])
+# Grounding DINO detection
+model_id    = "IDEA-Research/grounding-dino-tiny"
+text_labels = [["tree branch"]]
+
+processor  = AutoProcessor.from_pretrained(model_id)
+dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
+
+inputs = processor(images=image_pil, text=text_labels, return_tensors="pt").to(device)
+with torch.no_grad():
+    outputs = dino_model(**inputs)
+
+results = processor.post_process_grounded_object_detection(
+    outputs,
+    inputs.input_ids,
+    threshold=0.4,
+    text_threshold=0.3,
+    target_sizes=[image_pil.size[::-1]]
+)
+
+result = results[0]
+if len(result["boxes"]) == 0:
+    raise RuntimeError("No objects detected. Try lowering the detection threshold.")
+
+# Pick highest-confidence detection
+best_idx = result["scores"].argmax().item()
+box      = result["boxes"][best_idx].tolist()
+label    = result["labels"][best_idx]
+score    = result["scores"][best_idx]
+print(f"\nDetected '{label}' with confidence {score:.3f} at {[round(x, 2) for x in box]}")
+
+# Bounding box center as SAM point prompt
+cx = (box[0] + box[2]) / 2
+cy = (box[1] + box[3]) / 2
+input_point = np.array([[cx, cy]])
 input_label = np.array([1])
 
-# DEBUG
-plt.figure(figsize=(10, 10))
-plt.imshow(image)
-show_points(input_point, input_label, plt.gca())
-plt.scatter(image_center[0], image_center[1])
-plt.axis('on')
-plt.show()  
+# DEBUG - Detection + prompt point
+fig, ax = plt.subplots(1, figsize=(10, 10))
+ax.imshow(image_pil)
+show_box(box, ax)
+show_points(input_point, input_label, ax)
+ax.scatter(image_center[0], image_center[1], c="yellow", s=200, zorder=5)
+ax.axis("on")
+plt.title(f"{label} ({score:.2f})")
+plt.show()
 
-# Predict mask
-# checkpoint = "./checkpoints/sam2.1_hiera_large.pt"
-# model_cfg  = "configs/sam2.1/sam2.1_hiera_l.yaml"
-checkpoint = "./checkpoints/sam2.1_hiera_small.pt"
-model_cfg  = "configs/sam2.1/sam2.1_hiera_s.yaml"
-predictor  = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint, device=device))
+# SAM segmentation
+masks, scores, logits = predict_mask(image, input_point, input_label, device=str(device))
+show_masks(image, masks, scores, point_coords=input_point, input_labels=input_label, borders=True)
 
-autocast_dtype = torch.bfloat16 if device == "cuda" else torch.float16
-with torch.inference_mode(), torch.autocast(device, dtype=autocast_dtype):
-    predictor.set_image(image)
-    masks, scores, logits = predictor.predict(
-        point_coords=input_point,
-        point_labels=input_label,
-        multimask_output=False,
-    )
-
-    show_masks(image, masks, scores, point_coords=input_point, input_labels=input_label, borders=True)
-
-# Get centroid
+# Mask centroid
 for mask in masks:
-    mask = mask.astype(np.uint8)
-    contours, _ = cv2.findContours(mask,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE) 
-    # Try to smooth contours
-    contours    = [cv2.approxPolyDP(contour, epsilon=0.01, closed=True) for contour in contours]
+    mask      = mask.astype(np.uint8)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contours  = [cv2.approxPolyDP(c, epsilon=0.01, closed=True) for c in contours]
 
-    # Moments
     M = cv2.moments(contours[0])
+    if M["m00"] != 0:
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+    else:
+        ys, xs = np.where(mask)
+        cX, cY = int(xs.mean()), int(ys.mean())
+    print(f"Centroid (cX, cY): ({cX}, {cY})")
 
-    # Centroid (cx, cy)
-    if M['m00'] != 0: # Avoid division by zero
-        cX = int(M['m10'] / M['m00'])
-        cY = int(M['m01'] / M['m00'])
-        print(f"Centroid (cX, cY): ({cX}, {cY})")
+# Distance
+dist_ = distance(image_center, np.array([cX, cY]))
+print(f"Distance between mask centroid and image center (px): {dist_}")
 
-# Get distance
-dist_ = distance(image_center, np.asarray([cX, cY]))
-print(f"Distance between the mask centroid and the image center (px): {dist_}")
-
-# DEBUG - Plot
+# DEBUG - Final plot
 plt.figure(figsize=(10, 10))
 plt.imshow(image)
-plt.scatter(image_center[0], image_center[1])
-plt.scatter(cX, cY)
-plt.axis('on')
+plt.scatter(image_center[0], image_center[1], c="yellow", s=200, zorder=5, label="Image center")
+plt.scatter(cX, cY, c="red", s=200, zorder=5, label="Mask centroid")
+plt.legend()
+plt.axis("on")
 plt.show()
