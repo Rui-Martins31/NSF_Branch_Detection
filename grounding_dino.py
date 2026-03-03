@@ -1,46 +1,47 @@
-import torch
-import matplotlib.pyplot as plt
 from PIL import Image
+
+import torch
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 from accelerate import Accelerator
-from utils import show_box
 
-model_id = "IDEA-Research/grounding-dino-tiny"
-device = Accelerator().device
+# Constants
+MODEL_ID: str                = "IDEA-Research/grounding-dino-tiny"
+TEXT_PROMPT: list[list[str]] = [["tree branch"]]
 
-processor = AutoProcessor.from_pretrained(model_id)
-model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
+def grounding_dino_detect(
+    image_pil: Image,
+    model_id: str                = MODEL_ID,
+    text_labels: list[list[str]] = TEXT_PROMPT
+):
+    # Device
+    device = Accelerator().device    
 
-image_path  = "./images/tree_02"
-image       = Image.open(f"{image_path}.jpg")
-text_labels = [["tree branch"]]
+    # Processor and model
+    processor  = AutoProcessor.from_pretrained(model_id)
+    dino_model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
 
-inputs = processor(images=image, text=text_labels, return_tensors="pt").to(model.device)
-with torch.no_grad():
-    outputs = model(**inputs)
+    # Inputs
+    inputs = processor(images=image_pil, text=text_labels, return_tensors="pt").to(device)
+    with torch.no_grad():
+        outputs = dino_model(**inputs)
 
-results = processor.post_process_grounded_object_detection(
-    outputs,
-    inputs.input_ids,
-    threshold=0.4,
-    text_threshold=0.3,
-    target_sizes=[image.size[::-1]]
-)
+    # Results
+    results = processor.post_process_grounded_object_detection(
+        outputs,
+        inputs.input_ids,
+        threshold=0.4,
+        text_threshold=0.3,
+        target_sizes=[image_pil.size[::-1]]
+    )
+    result = results[0]
+    if len(result["boxes"]) == 0:
+        raise RuntimeError("No objects detected. Try lowering the detection threshold.")
 
-# Plot result
-result = results[0]
+    # Pick highest-confidence detection
+    best_idx = result["scores"].argmax().item()
+    box      = result["boxes"][best_idx].tolist()
+    label    = result["labels"][best_idx]
+    score    = result["scores"][best_idx]
+    print(f"\nDetected '{label}' with confidence {score:.3f} at {[round(x, 2) for x in box]}")
 
-fig, ax = plt.subplots(1, figsize=(10, 10))
-ax.imshow(image)
-
-for box, score, label in zip(result["boxes"], result["scores"], result["labels"]):
-    box = box.tolist()
-    show_box(box, ax)
-    x0, y0 = box[0], box[1]
-    ax.text(x0, y0 - 5, f"{label} {score:.2f}", color="white", fontsize=10,
-            bbox=dict(facecolor="green", alpha=0.6, pad=2))
-    print(f"\nDetected {label} with confidence {round(score.item(), 3)} at location {[round(x, 2) for x in box]}")
-
-plt.axis("off")
-plt.savefig(f"{image_path}_detections.jpg", bbox_inches="tight", dpi=150)
-plt.show()
+    return box, label, score
