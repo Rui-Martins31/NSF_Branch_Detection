@@ -7,10 +7,14 @@ import numpy as np
 
 np.random.seed(3)
 
-def predict_mask(image, input_point, input_label,
-                 checkpoint="./checkpoints/sam2.1_hiera_small.pt",
-                 model_cfg="configs/sam2.1/sam2.1_hiera_s.yaml",
-                 device=None):
+def predict_mask(
+    image,
+    input_point,
+    input_label,
+    checkpoint:str = "./checkpoints/sam2.1_hiera_small.pt",
+    model_cfg:str  = "configs/sam2.1/sam2.1_hiera_s.yaml",
+    device:str     = None
+):
     # Device
     if device is None:
         if torch.cuda.is_available():

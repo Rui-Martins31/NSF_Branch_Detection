@@ -10,7 +10,6 @@ MODEL_WEIGHTS = "GroundingDINO/weights/groundingdino_swint_ogc.pth"
 TEXT_PROMPT   = "tree branch"
 BOX_TRESHOLD  = 0.35
 TEXT_TRESHOLD = 0.25
-DEVICE        = "mps"  # for macOS
 
 model = load_model(MODEL_CONFIG, MODEL_WEIGHTS)
 
@@ -19,7 +18,17 @@ def grounding_dino_detect(
     text_prompt: str        = TEXT_PROMPT,
     box_threshold: float    = BOX_TRESHOLD,
     text_threshold: float   = TEXT_TRESHOLD,
+    device: str             = None
 ):
+    # Device
+    if device is None:
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+
     # Preprocess PIL image
     transform = T.Compose([
         T.RandomResize([800], max_size=1333),
@@ -34,7 +43,7 @@ def grounding_dino_detect(
         caption=text_prompt,
         box_threshold=box_threshold,
         text_threshold=text_threshold,
-        device=DEVICE,
+        device=device,
     )
 
     if len(boxes) == 0:
@@ -47,9 +56,9 @@ def grounding_dino_detect(
 
     # Pick highest-confidence detection
     best_idx = logits.argmax().item()
-    box   = xyxy[best_idx].tolist()
-    label = phrases[best_idx]
-    score = logits[best_idx].item()
+    box      = xyxy[best_idx].tolist()
+    label    = phrases[best_idx]
+    score    = logits[best_idx].item()
     print(f"\nDetected '{label}' with confidence {score:.3f} at {[round(x, 2) for x in box]}")
 
     return box, label, score
