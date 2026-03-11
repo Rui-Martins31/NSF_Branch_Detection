@@ -3,6 +3,7 @@
 __pycache__/
 .DS_Store
 .claude/
+recordings/
 
 # Python
 *.py[cod]
@@ -36,3 +37,6 @@ checkpoints/sam*
 # Environment
 .env
 *.env.*
+
+# Makefile
+Makefile
