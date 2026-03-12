@@ -7,7 +7,7 @@ from sam import predict_mask, compute_mask_center
 from grounding_dino import grounding_dino_detect
 
 # Image
-IMAGE_PATH   = "./images/tree_04"
+IMAGE_PATH   = "./images/tree_branch_03"
 IMAGE_RESIZE = (400, 300)
 image_pil    = Image.open(f"{IMAGE_PATH}.png").resize(IMAGE_RESIZE)
 image        = np.array(image_pil.convert("RGB"))
